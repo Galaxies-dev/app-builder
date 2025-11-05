@@ -1,17 +1,21 @@
 import Builds from '@/components/Builds';
 import { Colors } from '@/constants/Colors';
 import { db } from '@/lib/db';
+import { id } from '@instantdb/react-native';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function Index() {
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState('Build a Tic Tac Toe game');
   const user = db.useUser();
   const [buildId, setBuildId] = useState<string | null>(null);
+  const router = useRouter();
 
   const handleGenerate = async () => {
     const appPrompt = prompt;
     setPrompt('');
+    const buildId = id();
 
     const response = await fetch('/api/generate', {
       method: 'POST',
@@ -19,7 +23,7 @@ export default function Index() {
         'Content-Type': 'application/json',
         RefreshToken: `${user.refresh_token}`,
       },
-      body: JSON.stringify({ prompt: appPrompt }),
+      body: JSON.stringify({ prompt: appPrompt, buildId }),
     });
     if (!response.ok) {
       console.error('Failed to get response from LLM');
@@ -27,8 +31,10 @@ export default function Index() {
 
     const data = await response.json();
     console.log(data);
-    setBuildId(data.buildId);
+    // setBuildId(data.buildId);
+    router.push(`/build/${buildId}`);
   };
+
   return (
     <View
       style={{

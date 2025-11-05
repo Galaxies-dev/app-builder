@@ -19,6 +19,7 @@ const Builds = () => {
         }
       : null
   );
+  console.log('🚀 ~ Builds ~ data:', data);
 
   if (isLoading) {
     return <Text>Loading...</Text>;
@@ -27,15 +28,15 @@ const Builds = () => {
     return <Text>Error: {error.message}</Text>;
   }
 
-  if (!data) {
+  if (!data || !data.$users[0] || !data.$users[0].builds) {
     return <Text>No builds found</Text>;
   }
 
   const renderListItem = ({ item }: { item: any }) => {
     return (
-      <Link href={`/build/${item.instantAppId}`} asChild>
+      <Link href={`/build/${item.id}`} asChild>
         <TouchableOpacity>
-          <Text>{item.instantAppId}</Text>
+          <Text>{item.id}</Text>
         </TouchableOpacity>
       </Link>
     );
