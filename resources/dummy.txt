@@ -1,0 +1,345 @@
+import { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { init, id, InstaQLEntity, i } from '@instantdb/react-native';
+
+// ============================================================================
+// INSTANT SETUP - Initialize connection and define schema
+// ============================================================================
+
+// Define schema with notes
+const schema = i.schema({
+  entities: {
+    notes: i.entity({
+      title: i.string().optional(),
+      content: i.string(),
+      authorId: i.string(),
+      timestamp: i.number().indexed(),
+    }),
+  },
+});
+
+// Initialize InstantDB connection
+const APP_ID = '42824120-dd80-4583-a23a-9c62dc936c8e';
+const db = init({ appId: APP_ID, schema });
+
+// Type definitions from schema
+type Schema = typeof schema;
+type Note = InstaQLEntity<Schema, 'notes'>;
+
+// ============================================================================
+// INSTANT DB OPERATIONS - Real-time, reactive, and collaborative by default
+// ============================================================================
+
+// Create a new note
+function createNote(title: string, content: string, authorId: string) {
+  db.transact(
+    db.tx.notes[id()].create({
+      title,
+      content,
+      authorId,
+      timestamp: Date.now()
+    })
+  );
+}
+
+// ============================================================================
+// MAIN APP - Demonstrates real-time queries and local-first identity
+// ============================================================================
+
+function App() {
+  // Local-first user identity - persists across sessions
+  const localId = db.useLocalId('guest');
+
+  const [username, setUsername] = useState('');
+  const [showNewNote, setShowNewNote] = useState(false);
+
+  // Real-time query - automatically updates when any client makes changes
+  const { isLoading, error, data } = db.useQuery({
+    notes: {
+      $: { order: { timestamp: 'desc' } },
+    }
+  });
+
+  const notes = data?.notes || [];
+  const currentUsername = username || localId?.slice(0, 8) || 'anon';
+
+  if (isLoading) return null;
+  if (error) return <View style={styles.errorContainer}><Text style={styles.errorText}>Error: {error.message}</Text></View>;
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>InstaNotes</Text>
+        <TextInput
+          placeholder="Set username"
+          value={username}
+          onChangeText={setUsername}
+          style={styles.usernameInput}
+        />
+        <TouchableOpacity
+          onPress={() => setShowNewNote(true)}
+          style={styles.newNoteButton}
+        >
+          <Text style={styles.newNoteButtonText}>New Note</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={styles.main}>
+        <View style={styles.noteList}>
+          {notes.map((note) => (
+            <View key={note.id} style={styles.noteCard}>
+              <Text style={styles.noteTitle}>{note.title}</Text>
+              <Text style={styles.noteContent}>{note.content}</Text>
+              <Text style={styles.noteMeta}>by {note.authorId} • {formatTime(note.timestamp)}</Text>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+
+      {showNewNote && (
+        <Modal onClose={() => setShowNewNote(false)}>
+          <NewNoteForm
+            authorId={currentUsername}
+            onSubmit={() => setShowNewNote(false)}
+          />
+        </Modal>
+      )}
+    </View>
+  );
+}
+
+// ============================================================================
+// UI COMPONENTS - Presentation layer that reacts to InstantDB state
+// ============================================================================
+
+function NewNoteForm({ authorId, onSubmit }: { authorId: string; onSubmit: () => void }) {
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+
+  const handleSubmit = () => {
+    if (!content.trim()) return;
+
+    createNote(title.trim(), content.trim(), authorId);
+    onSubmit();
+  };
+
+  return (
+    <View style={styles.formContainer}>
+      <Text style={styles.formTitle}>Create Note</Text>
+      <TextInput
+        placeholder="Title"
+        value={title}
+        onChangeText={setTitle}
+        style={styles.input}
+      />
+      <TextInput
+        placeholder="Content"
+        value={content}
+        onChangeText={setContent}
+        style={[styles.input, styles.textArea]}
+        multiline
+      />
+      <View style={styles.formButtons}>
+        <TouchableOpacity
+          onPress={handleSubmit}
+          style={styles.submitButton}
+        >
+          <Text style={styles.submitButtonText}>Save</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={onSubmit}
+          style={styles.cancelButton}
+        >
+          <Text style={styles.cancelButtonText}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  return (
+    <View style={styles.modalOverlay}>
+      <View style={styles.modalContent}>
+        <View style={styles.modalInner}>
+          <TouchableOpacity
+            onPress={onClose}
+            style={styles.modalClose}
+          >
+            <Text style={styles.modalCloseText}>×</Text>
+          </TouchableOpacity>
+          {children}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ============================================================================
+// UTILITY FUNCTIONS - Pure functions for data transformation
+// ============================================================================
+
+function formatTime(timestamp: number): string {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+// ============================================================================
+// STYLESHEET - React Native styles
+// ============================================================================
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f3f4f6',
+  },
+  errorContainer: {
+    padding: 16,
+  },
+  errorText: {
+    color: '#ef4444',
+  },
+  header: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#d1d5db',
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#f97316',
+  },
+  usernameInput: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  newNoteButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#f97316',
+    borderRadius: 4,
+  },
+  newNoteButtonText: {
+    color: '#fff',
+  },
+  main: {
+    flex: 1,
+    padding: 16,
+  },
+  noteList: {
+    gap: 12,
+  },
+  noteCard: {
+    backgroundColor: '#fff',
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    padding: 16,
+    marginBottom: 12,
+  },
+  noteTitle: {
+    fontWeight: '600',
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  noteContent: {
+    color: '#4b5563',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  noteMeta: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  formContainer: {
+    padding: 16,
+  },
+  formTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  input: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 4,
+    marginBottom: 12,
+    fontSize: 14,
+  },
+  textArea: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  formButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  submitButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#f97316',
+    borderRadius: 4,
+  },
+  submitButtonText: {
+    color: '#fff',
+  },
+  cancelButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 4,
+  },
+  cancelButtonText: {
+    color: '#374151',
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    maxWidth: 400,
+    width: '90%',
+    padding: 16,
+  },
+  modalInner: {
+    position: 'relative',
+  },
+  modalClose: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 1,
+  },
+  modalCloseText: {
+    fontSize: 24,
+    color: '#6b7280',
+  },
+});
+
+export default App;
