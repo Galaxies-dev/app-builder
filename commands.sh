@@ -18,3 +18,4 @@ bun add ai @ai-sdk/openai @ai-sdk/react zod
 bun add @ungap/structured-clone @stardazed/streams-text-encoding
 
 bun i @instantdb/react
+bun i @babel/standalone

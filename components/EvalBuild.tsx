@@ -1,12 +1,11 @@
-"use client";
+'use client';
 
-import { useEffect, useState, use, Suspense } from "react";
-import * as Babel from "@babel/standalone";
-import React from "react";
-import { id as instantId, i, init } from "@instantdb/react";
-import clientDB from "@/clientLib/clientDB";
-import { Box } from "@/components/ui";
-import { resolveBuildIdent } from "@/clientLib/evalHelpers";
+import clientDB from '@/clientLib/clientDB';
+import { resolveBuildIdent } from '@/clientLib/evalHelpers';
+import { Box } from '@/components/ui';
+import * as Babel from '@babel/standalone';
+import { i, init, id as instantId } from '@instantdb/react';
+import React, { useEffect, useState } from 'react';
 
 export default function EvalBuild({ ident }: { ident: string }) {
   const [error, setError] = useState<string | null>(null);
@@ -25,8 +24,8 @@ export default function EvalBuild({ ident }: { ident: string }) {
   const build = data?.builds?.[0];
 
   useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4";
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4';
     script.onload = () => setTailwindLoaded(true);
     document.head.appendChild(script);
 
@@ -44,13 +43,13 @@ export default function EvalBuild({ ident }: { ident: string }) {
     try {
       // Clean the code: find the first import statement and start from there
       let cleanCode = build.code;
-      const importIndex = cleanCode.indexOf("import ");
+      const importIndex = cleanCode.indexOf('import ');
       if (importIndex > 0) {
         cleanCode = cleanCode.substring(importIndex);
       }
 
       // Trim any text after "export default App;"
-      const exportText = "export default App;";
+      const exportText = 'export default App;';
       const exportIndex = cleanCode.indexOf(exportText);
       if (exportIndex > -1) {
         cleanCode = cleanCode.substring(0, exportIndex + exportText.length);
@@ -58,14 +57,14 @@ export default function EvalBuild({ ident }: { ident: string }) {
 
       // Transform the TypeScript code to JavaScript with proper module transformation
       const transformedCode = Babel.transform(cleanCode, {
-        presets: ["react", "typescript"],
-        plugins: [["transform-modules-commonjs", { strict: false }]],
-        filename: "app.tsx",
-        sourceType: "module",
+        presets: ['react', 'typescript'],
+        plugins: [['transform-modules-commonjs', { strict: false }]],
+        filename: 'app.tsx',
+        sourceType: 'module',
       }).code;
 
       if (!transformedCode) {
-        throw new Error("Failed to transform code");
+        throw new Error('Failed to transform code');
       }
 
       // Create a function that will evaluate the code with the required context
@@ -78,7 +77,7 @@ export default function EvalBuild({ ident }: { ident: string }) {
           const require = function(name) {
             const modules = {
               'react': React,
-              '@instantdb/react': { id, i, init, InstaQLEntity: {} }
+              '@instantdb/react-native': { id, i, init, InstaQLEntity: {} }
             };
             
             if (modules[name]) {
@@ -102,23 +101,17 @@ export default function EvalBuild({ ident }: { ident: string }) {
 
       // Evaluate the code and get the component
       const evalFunc = eval(evalCode);
-      const AppComponent = evalFunc(
-        React,
-        build.instantAppId,
-        instantId,
-        i,
-        init
-      );
+      const AppComponent = evalFunc(React, build.instantAppId, instantId, i, init);
 
-      if (typeof AppComponent !== "function") {
-        throw new Error("Code did not export a valid React component");
+      if (typeof AppComponent !== 'function') {
+        throw new Error('Code did not export a valid React component');
       }
 
       setComponent(() => AppComponent);
       setError(null);
     } catch (err) {
-      console.error("Error evaluating code:", err);
-      setError(err instanceof Error ? err.message : "Failed to evaluate code");
+      console.error('Error evaluating code:', err);
+      setError(err instanceof Error ? err.message : 'Failed to evaluate code');
       setComponent(null);
     }
   }, [build, tailwindLoaded]);
@@ -131,9 +124,7 @@ export default function EvalBuild({ ident }: { ident: string }) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Box className="border-red-500 p-12">
-          <div className="text-red-600">
-            Oi! We couldn't find this build. Sorry about that.
-          </div>
+          <div className="text-red-600">Oi! We couldn't find this build. Sorry about that.</div>
         </Box>
       </div>
     );
@@ -143,9 +134,7 @@ export default function EvalBuild({ ident }: { ident: string }) {
     return (
       <div className="p-4">
         <div className="border border-red-300 bg-red-50 rounded-lg p-4">
-          <div className="text-red-800 font-semibold mb-2">
-            Error loading app:
-          </div>
+          <div className="text-red-800 font-semibold mb-2">Error loading app:</div>
           <div className="text-red-700 text-sm font-mono">{error}</div>
         </div>
       </div>

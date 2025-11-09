@@ -13,6 +13,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^2.0.62",
     "@ai-sdk/react": "^2.0.87",
+    "@babel/standalone": "^7.28.5",
     "@expo/vector-icons": "^15.0.3",
     "@instantdb/admin": "^0.22.45",
     "@instantdb/platform": "^0.22.45",
