@@ -3,7 +3,8 @@ import platformAPI from '@/lib/platformAPI';
 import { getSystemPrompt } from '@/utils/systemPrompt';
 import { openai } from '@ai-sdk/openai';
 import { id, User } from '@instantdb/react-native';
-import { generateText } from 'ai';
+import { streamText } from 'ai';
+import { runTask } from 'expo-server';
 
 export async function POST(req: Request) {
   const { prompt } = await req.json();
@@ -34,22 +35,82 @@ export async function POST(req: Request) {
     console.log('generateText');
 
     // THIS ACTUALLY GENERATES THE CODE
-    generateText({
-      model: openai('gpt-5-codex'),
-      prompt: prompt,
-      system: getSystemPrompt(),
-      onStepFinish: async (step) => {
-        console.log('🚀 ~ POST ~ step:', step.text);
-        await adminDB
-          .asUser({ email: user.email! })
-          .transact([adminDB.tx.builds[buildId].update({ code: step.text, isPreviewable: true })]);
-      },
-    });
-
+    runTask(async () => { 
+      await callOpenAI({ prompt, user, buildId});
+    })
+    
     return Response.json({ buildId });
   } catch (error: any) {
     return Response.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
+}
+
+async function callOpenAI(
+  { prompt, user, buildId}: { prompt: string; user: User; buildId: string}
+) { 
+  let reasoning = '';
+  let code = '';
+  let isPreviewable = false;
+
+  let isPending = false;
+  let needsAnotherSave = false;
+  let triggerSave = async () => {
+    if (isPending) {
+      needsAnotherSave = true;
+      return;
+    }
+    isPending = true;
+
+    while (true) {
+      needsAnotherSave = false;
+      try {
+        await adminDB
+          .asUser({ email: user.email! })
+          .transact([adminDB.tx.builds[buildId].update({ code: code, isPreviewable, reasoning })]);
+      } catch (error) {
+        console.error('Error saving build:', error);
+      }
+
+      if (!needsAnotherSave) {
+        break;
+      }
+    }
+
+    isPending = false;
+  }
+  
+  console.log('streamText')
+  
+  const { fullStream } = streamText({
+    model: openai('gpt-5-codex'),
+    prompt: prompt,
+    system: getSystemPrompt(),
+    providerOptions: {
+      openai: {
+        reasoningSummary: 'detailed',
+        reasoningEffort: 'low',
+      }
+    }
+  });
+  
+  for await (const chunk of fullStream) {
+    switch (chunk.type) { 
+      case 'text-delta': 
+        code += chunk.text;
+        triggerSave();
+        break;
+      case 'reasoning-delta': 
+        reasoning += chunk.text;
+        triggerSave();
+        break;
+      default: 
+        console.log('step: ', chunk.type);
+        break;
+    }
+  }
+  
+  isPreviewable = true;
+  triggerSave()
 }
 
 async function createBuild(

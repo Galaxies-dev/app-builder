@@ -20,6 +20,7 @@ const _schema = i.schema({
     builds: i.entity({
       instantAppId: i.string(),
       code: i.string(),
+      reasoning: i.string().optional(),
       slug: i.string().indexed().unique().optional(),
       error: i.json<BuildError>().optional(),
       isPreviewable: i.boolean().optional(),
